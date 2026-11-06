@@ -1,0 +1,49 @@
+@page "/findings"
+@model FindingsModel
+@{
+    ViewData["Title"] = "Findings";
+    string Link(FindingKind? k, Severity? s) => "/findings" + (k is null && s is null ? "" : "?" + string.Join("&", new[] { k is null ? null : $"kind={k}", s is null ? null : $"severity={s}" }.Where(x => x is not null)));
+}
+<h1>Findings</h1>
+<p class="lead">What people have compared with what they may have: the HR feed, the account exports and the access policy.
+    Recalculated on every visit, so a fixed problem disappears with the next import.</p>
+
+<div class="filters">
+    <a class="@(Model.Kind is null ? "active" : "")" href="@Link(null, Model.Severity)">All types</a>
+    @foreach (var g in Model.All.GroupBy(f => f.Kind).OrderBy(g => g.Key))
+    {
+        <a class="@(Model.Kind == g.Key ? "active" : "")" href="@Link(g.Key, Model.Severity)">@Analyzer.Describe(g.Key) (@g.Count())</a>
+    }
+</div>
+<div class="filters">
+    <a class="@(Model.Severity is null ? "active" : "")" href="@Link(Model.Kind, null)">Any severity</a>
+    @foreach (var s in Enum.GetValues<Severity>().Reverse())
+    {
+        <a class="@(Model.Severity == s ? "active" : "")" href="@Link(Model.Kind, s)">@s</a>
+    }
+</div>
+
+@if (Model.Shown.Count == 0)
+{
+    <p class="muted">Nothing found.</p>
+}
+else
+{
+    <div class="table-wrap">
+    <table class="grid">
+        <thead><tr><th>Severity</th><th>Type</th><th>Person</th><th>Account</th><th>What is wrong</th></tr></thead>
+        <tbody>
+        @foreach (var f in Model.Shown)
+        {
+            <tr>
+                <td><span class="sev @AppPage.Css(f.Severity)">@f.Severity</span></td>
+                <td><span class="kind">@Analyzer.Describe(f.Kind)</span>@if (f.RuleId is not null) {<br><span class="tag">@f.RuleId</span>}</td>
+                <td>@Model.Name(f.EmployeeId)@if (f.EmployeeId is not null) {<br><span class="muted">@f.EmployeeId</span>}</td>
+                <td><span class="ent">@f.AccountKey</span></td>
+                <td>@f.Message</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+}

@@ -1,0 +1,115 @@
+@page "/"
+@model IndexModel
+@{
+    ViewData["Title"] = "Overview";
+    var c = Model.Data.Campaign;
+    var s = Model.Data.Stats;
+}
+<h1>Overview</h1>
+<p class="lead">
+    @Model.Data.People people in the HR feed, @Model.Data.Accounts accounts in @Model.Data.Apps.Count applications
+    (@string.Join(", ", Model.Data.Apps)). @(Model.Oversight ? "Findings for the whole bank." : "Findings for your direct reports.")
+</p>
+
+@if (Model.MyOpen > 0)
+{
+    <p class="banner"><b>You have @Model.MyOpen access decisions to make</b>@(Model.MyRisky > 0 ? $", {Model.MyRisky} of them with a risk" : "").
+        <a href="/reviews">Open my reviews</a>@(c is not null ? $" (due {c.DueOn:dd.MM.yyyy})" : "").</p>
+}
+
+<div class="tiles">
+    <a class="tile @(Model.Count(Severity.Critical) > 0 ? "alarm" : "")" href="/findings?severity=Critical"><span class="n">@Model.Count(Severity.Critical)</span>critical findings</a>
+    <a class="tile @(Model.Count(Severity.High) > 0 ? "warn" : "")" href="/findings?severity=High"><span class="n">@Model.Count(Severity.High)</span>high findings</a>
+    <a class="tile" href="/findings"><span class="n">@Model.Visible.Count</span>findings in total</a>
+    @if (s is not null && c is not null)
+    {
+        <a class="tile @(s.Overdue > 0 ? "alarm" : "")" href="@(Model.Oversight ? $"/campaign/{c.Id}" : "/reviews")">
+            <span class="n">@s.Percent %</span>@(c.IsOpen ? "of the campaign decided" : "decided, campaign closed")
+            <div class="progress"><span class="@AppPage.Bar(s.Percent)"></span></div>
+        </a>
+    }
+</div>
+
+<div class="cols">
+    <section>
+        <h2>Findings by type</h2>
+        @if (Model.Visible.Count == 0)
+        {
+            <p class="muted">No findings.</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+            <table class="grid compact">
+                <thead><tr><th>Type</th><th>Worst</th><th class="num">Count</th></tr></thead>
+                <tbody>
+                @foreach (var g in Model.Visible.GroupBy(f => f.Kind).OrderByDescending(g => g.Max(f => f.Severity)).ThenByDescending(g => g.Count()))
+                {
+                    var worst = g.Max(f => f.Severity);
+                    <tr>
+                        <td><a href="/findings?kind=@g.Key">@Analyzer.Describe(g.Key)</a></td>
+                        <td><span class="sev @AppPage.Css(worst)">@worst</span></td>
+                        <td class="num">@g.Count()</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            </div>
+        }
+    </section>
+
+    <section>
+        @if (c is null)
+        {
+            <h2>Campaign</h2>
+            <p class="muted">No review campaign yet.@if (Model.Oversight) { <text> <a href="/campaign">Start one</a>.</text> }</p>
+        }
+        else
+        {
+            <h2>@c.Name</h2>
+            <p class="muted">Started @Model.Clock.Format(c.StartedAt) by @c.StartedBy · due @c.DueOn.ToString("dd.MM.yyyy")
+                @if (!c.IsOpen) { <text> · closed @Model.Clock.Format(c.ClosedAt)</text> }</p>
+            @if (s is not null)
+            {
+                <p>@s.Decided of @s.Total decided: <span class="dec keep">@s.Kept keep</span> <span class="dec revoke">@s.Revoked revoke</span>
+                    @if (s.RiskyOpen > 0) { <span class="sev high">@s.RiskyOpen risky still open</span> }
+                    @if (s.Overdue > 0) { <span class="sev critical">@s.Overdue overdue</span> }</p>
+            }
+            @if (Model.Data.Progress.Count > 0)
+            {
+                <div class="table-wrap">
+                <table class="grid compact">
+                    <thead><tr><th>Reviewer</th><th>Progress</th><th class="num">Open</th></tr></thead>
+                    <tbody>
+                    @foreach (var p in Model.Data.Progress)
+                    {
+                        var pct = p.Total == 0 ? 100 : p.Decided * 100 / p.Total;
+                        <tr>
+                            <td>@p.ReviewerName @if (p.Escalated > 0) { <span class="tag">@p.Escalated escalated</span> }</td>
+                            <td><div class="progress"><span class="@AppPage.Bar(pct)"></span></div></td>
+                            <td class="num">@(p.Total - p.Decided)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                </div>
+            }
+        }
+    </section>
+</div>
+
+@if (Model.Oversight && Model.Data.LastImports.Count > 0)
+{
+    <h2>Data basis</h2>
+    <div class="table-wrap">
+    <table class="grid compact">
+        <thead><tr><th>Source</th><th>File</th><th class="num">Rows</th><th>Imported</th><th>SHA-256</th></tr></thead>
+        <tbody>
+        @foreach (var i in Model.Data.LastImports)
+        {
+            <tr><td>@i.Source</td><td>@i.FileName</td><td class="num">@i.Rows</td><td>@Model.Clock.Format(i.At) · @i.ImportedBy</td><td><code>@i.Sha256[..16]…</code></td></tr>
+        }
+        </tbody>
+    </table>
+    </div>
+}

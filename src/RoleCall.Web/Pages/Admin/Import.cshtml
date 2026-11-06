@@ -1,0 +1,75 @@
+@page "/admin/import"
+@model RoleCall.Web.Pages.Admin.ImportModel
+@{
+    ViewData["Title"] = "Import & policy";
+}
+<h1>Import &amp; policy</h1>
+<p class="lead">The HR feed is the source of truth for who works here. Each application export replaces the previous one of
+    that application. Every file is logged with its SHA-256, so a campaign can prove what it was based on.</p>
+
+@if (Model.Notice is not null) { <p class="notice">@Model.Notice</p> }
+@if (Model.Problem is not null) { <p class="error">@Model.Problem</p> }
+
+<div class="cols">
+    <form class="form" method="post" enctype="multipart/form-data" asp-page-handler="People">
+        <h2>HR feed</h2>
+        <p class="muted">Columns: <code>employee_id, name, email, department, position, manager_id</code>, optional
+            <code>leave_date, previous_department, moved_on</code>.</p>
+        <label>CSV file <input type="file" name="file" accept=".csv,text/csv" required></label>
+        <div><button class="button primary" type="submit">Import HR feed</button></div>
+    </form>
+    <form class="form" method="post" enctype="multipart/form-data" asp-page-handler="Accounts">
+        <h2>Application accounts</h2>
+        <p class="muted">Columns: <code>account_id, enabled, entitlements</code> (separated by <code>|</code>), optional
+            <code>employee_id, email, privileged, created, last_login</code>.</p>
+        <label>Application <input name="app" required maxlength="50" list="apps" placeholder="Payments"></label>
+        <datalist id="apps">@foreach (var a in Model.Data.Apps) { <option value="@a"></option> }</datalist>
+        <label>CSV file <input type="file" name="file" accept=".csv,text/csv" required></label>
+        <div><button class="button primary" type="submit">Import accounts</button></div>
+    </form>
+    <form class="form" method="post" enctype="multipart/form-data" asp-page-handler="Policy">
+        <h2>Access policy</h2>
+        <p class="muted">JSON: SoD rules, mitigations, baselines per department, application owners, time limits.
+            Checked before it replaces the current one.</p>
+        <label>JSON file <input type="file" name="file" accept=".json,application/json" required></label>
+        <div><button class="button primary" type="submit">Upload policy</button></div>
+    </form>
+</div>
+
+<h2>Segregation-of-duties rules</h2>
+<div class="table-wrap">
+<table class="grid compact">
+    <thead><tr><th>Rule</th><th>Severity</th><th>Side A</th><th>Side B</th><th>Why</th></tr></thead>
+    <tbody>
+    @foreach (var r in Model.Policy.SodRules)
+    {
+        <tr>
+            <td><b>@r.Id</b><br>@r.Name</td>
+            <td><span class="sev @AppPage.Css(r.Severity)">@r.Severity</span></td>
+            <td>@foreach (var e in r.SideA) { <span class="ent">@e</span><br> }</td>
+            <td>@foreach (var e in r.SideB) { <span class="ent">@e</span><br> }</td>
+            <td>@r.Why</td>
+        </tr>
+    }
+    </tbody>
+</table>
+</div>
+
+@if (Model.Policy.Mitigations.Count > 0)
+{
+    <h2>Accepted conflicts (mitigations)</h2>
+    <div class="table-wrap">
+    <table class="grid compact">
+        <thead><tr><th>Rule</th><th>Employee</th><th>Compensating control</th><th>Approved by</th><th>Expires</th></tr></thead>
+        <tbody>
+        @foreach (var m in Model.Policy.Mitigations)
+        {
+            <tr><td>@m.RuleId</td><td>@m.EmployeeId</td><td>@m.Control</td><td>@m.ApprovedBy</td><td>@m.Expires.ToString("dd.MM.yyyy")</td></tr>
+        }
+        </tbody>
+    </table>
+    </div>
+}
+
+<p class="muted">Dormant after @Model.Policy.DormantDays days · leaver grace @Model.Policy.LeaverGraceDays day(s), none for privileged accounts ·
+    movers keep old access for @Model.Policy.MoverGraceDays days · fallback reviewer @Model.Policy.FallbackReviewer</p>

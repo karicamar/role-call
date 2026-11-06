@@ -1,0 +1,33 @@
+@page "/audit"
+@model AuditModel
+@{
+    ViewData["Title"] = "Audit trail";
+}
+<h1>Audit trail</h1>
+<p class="lead">Every import, decision, escalation and export, newest first. Each entry contains the hash of the one before,
+    so an edited or deleted entry breaks the chain.</p>
+@if (Model.BrokenAt is { } broken)
+{
+    <p class="chain-bad">✘ The chain is broken at entry #@broken. The trail has been changed outside RoleCall.</p>
+}
+else
+{
+    <p class="chain-ok">✔ Hash chain intact (@Model.Rows.Count most recent entries shown).</p>
+}
+<div class="table-wrap">
+<table class="grid compact">
+    <thead><tr><th>#</th><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead>
+    <tbody>
+    @foreach (var a in Model.Rows)
+    {
+        <tr>
+            <td class="num">@a.Id</td>
+            <td>@Model.Clock.Format(a.At)</td>
+            <td>@a.Actor</td>
+            <td><code>@a.Action</code></td>
+            <td>@a.Detail</td>
+        </tr>
+    }
+    </tbody>
+</table>
+</div>

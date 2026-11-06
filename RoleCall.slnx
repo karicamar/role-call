@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RoleCall.Domain/RoleCall.Domain.csproj" />
+    <Project Path="src/RoleCall.Web/RoleCall.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RoleCall.Tests/RoleCall.Tests.csproj" />
+  </Folder>
+</Solution>

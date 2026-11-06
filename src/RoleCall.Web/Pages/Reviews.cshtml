@@ -1,0 +1,108 @@
+@page "/reviews"
+@model ReviewsModel
+@{
+    ViewData["Title"] = "My reviews";
+    var c = Model.Campaign;
+}
+<h1>My reviews</h1>
+
+@if (Model.Notice is not null) { <p class="notice">@Model.Notice</p> }
+@if (Model.Problem is not null) { <p class="error">@Model.Problem</p> }
+
+@if (!Model.Linked)
+{
+    <p class="lead">Your sign-in is not linked to an employee id, so no reviews can be assigned to you.</p>
+}
+else if (c is null)
+{
+    <p class="lead">There is no open review campaign. You will see your items here when the IAM team starts one.</p>
+}
+else
+{
+    var overdue = Model.Clock.Today > c.DueOn;
+    <p class="lead">
+        <b>@c.Name</b>, due <b>@c.DueOn.ToString("dd.MM.yyyy")</b>. For each entitlement: does this person still need it for their
+        current job? Revoke when in doubt; access can be requested again. You never review your own access.
+    </p>
+    @if (overdue && Model.Open > 0)
+    {
+        <p class="error">The campaign is overdue. Open items are escalated to your manager.</p>
+    }
+
+    <div class="actions">
+        <span>@Model.Open open of @Model.Items.Count</span>
+        <a class="button small" href="/reviews@(Model.All ? "" : "?all=true")">@(Model.All ? "Show open only" : "Show decided too")</a>
+        @if (Model.LowRiskOpen > 0)
+        {
+            <form method="post" asp-page-handler="KeepLowRisk" asp-route-all="@Model.All">
+                <button class="button" type="submit">Keep all @Model.LowRiskOpen low-risk entitlements</button>
+            </form>
+            <span class="muted">Only items without any finding. Risky access is decided one by one.</span>
+        }
+    </div>
+
+    @if (Model.People.Count == 0)
+    {
+        <p class="notice">All done. Thank you.</p>
+    }
+    @foreach (var person in Model.People)
+    {
+        var first = person.First();
+        <section class="person">
+            <header>
+                <h3>@first.SubjectName <span class="muted">@(first.SubjectId.StartsWith('?') ? "" : first.SubjectId)</span></h3>
+                <span class="muted">You review as @first.ReviewerReason</span>
+            </header>
+            @foreach (var i in person.OrderByDescending(i => i.Severity).ThenBy(i => i.Entitlement))
+            {
+                var needs = i.Risks.Contains(FindingKind.SodConflict) || i.Risks.Contains(FindingKind.Orphan) || i.Risks.Contains(FindingKind.UnownedPrivileged) || i.Risks.Contains(FindingKind.MoverRetained);
+                var leaver = i.Risks.Contains(FindingKind.LeaverActive);
+                <div class="item @(i.Decision is null ? "" : "done")" id="item-@i.Id">
+                    <div>
+                        <span class="ent">@i.Entitlement</span><br>
+                        <span class="muted">@i.AccountKey</span>
+                        @if (i.Privileged) { <span class="tag">privileged</span> }
+                    </div>
+                    <div class="risk">
+                        @if (i.Risks.Count == 0)
+                        {
+                            <span class="muted">No findings.</span>
+                        }
+                        else
+                        {
+                            <span class="sev @AppPage.Css(i.Severity)">@i.Severity</span>
+                            @foreach (var r in i.Risks) { <span class="kind">@Analyzer.Describe(r)</span> }
+                            <div>@i.RiskText</div>
+                        }
+                    </div>
+                    <div>
+                        @if (i.Decision is { } d)
+                        {
+                            <span class="dec @d.ToString().ToLowerInvariant()">@d</span>
+                            <span class="muted">@Model.Clock.Format(i.DecidedAt)@(i.Bulk ? " (bulk)" : "")</span>
+                            @if (i.Comment is not null) { <div class="muted">“@i.Comment”</div> }
+                        }
+                        @if (c.IsOpen)
+                        {
+                            <form method="post" asp-page-handler="Decide" asp-route-all="@Model.All">
+                                <input type="hidden" name="id" value="@i.Id">
+                                <input type="hidden" name="version" value="@i.Version">
+                                @if (!leaver)
+                                {
+                                    <textarea name="comment" maxlength="1000" aria-label="Comment for @i.Entitlement"
+                                              placeholder="@(needs ? "Required to keep: the compensating control or reason" : "Comment (optional)")"></textarea>
+                                    <button class="button small" type="submit" name="decision" value="Keep">Keep</button>
+                                }
+                                else
+                                {
+                                    <span class="muted">Left the bank: revoke only.</span>
+                                }
+                                <button class="button small danger" type="submit" name="decision" value="Revoke">Revoke</button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+    }
+}

@@ -1,0 +1,76 @@
+{
+  // Mainufer Bank AG (fictional): access policy kept by the IAM team in version control.
+  // In the demo seed, TODAY+20 and TODAY-15 are replaced with real dates.
+  "fallbackReviewer": "E1002",
+  "dormantDays": 90,
+  "leaverGraceDays": 1,
+  "moverGraceDays": 30,
+  "mitigationWarningDays": 30,
+  "appOwners": {
+    "Payments": "E1020",
+    "Treasury": "E1030",
+    "CoreBanking": "E1040",
+    "Directory": "E1040"
+  },
+  "sodRules": [
+    {
+      "id": "SOD-01",
+      "name": "Create and approve payments",
+      "sideA": ["Payments:Create"],
+      "sideB": ["Payments:Approve", "Payments:Release"],
+      "severity": "Critical",
+      "why": "One person could enter a payment and approve it, so the four-eyes principle is gone."
+    },
+    {
+      "id": "SOD-02",
+      "name": "Trading and settlement",
+      "sideA": ["Treasury:Trade"],
+      "sideB": ["Treasury:Confirm", "Treasury:Settle"],
+      "severity": "High",
+      "why": "A dealer who confirms or settles their own trades can hide losses. Front and back office must be separate."
+    },
+    {
+      "id": "SOD-03",
+      "name": "Develop and deploy to production",
+      "sideA": ["CoreBanking:Develop"],
+      "sideB": ["CoreBanking:DeployProd", "CoreBanking:DBA"],
+      "severity": "High",
+      "why": "A developer who can deploy or change the production database can bypass the change process."
+    },
+    {
+      "id": "SOD-04",
+      "name": "Administer users and approve payments",
+      "sideA": ["Payments:AdminUsers", "Directory:DomainAdmin", "Directory:IdentityAdmin"],
+      "sideB": ["Payments:Approve", "Payments:Release"],
+      "severity": "Critical",
+      "why": "Whoever manages accounts could give themselves or others approval rights."
+    }
+  ],
+  "mitigations": [
+    {
+      "ruleId": "SOD-01",
+      "employeeId": "E1023",
+      "control": "Head of Payments reviews every payment Sara releases, daily",
+      "approvedBy": "E1002",
+      "expires": "TODAY+20"
+    },
+    {
+      "ruleId": "SOD-01",
+      "employeeId": "E1025",
+      "control": "Temporary cover during the migration project",
+      "approvedBy": "E1002",
+      "expires": "TODAY-15"
+    }
+  ],
+  "baselines": {
+    "Payments": ["Payments:Create", "Payments:ViewReports", "Directory:User"],
+    "Treasury": ["Treasury:Trade", "Treasury:View", "Directory:User"],
+    "Treasury Operations": ["Treasury:Confirm", "Treasury:Settle", "Treasury:View", "Directory:User"],
+    "IT Operations": ["CoreBanking:Read", "CoreBanking:DeployProd", "Directory:User", "Directory:HelpdeskReset"],
+    "Development": ["CoreBanking:Read", "CoreBanking:Develop", "Directory:User"],
+    "Management": ["Directory:User", "Payments:ViewReports"],
+    "Information Security": ["Directory:User", "CoreBanking:Read"],
+    "IAM": ["Directory:User", "Directory:IdentityAdmin"],
+    "Internal Audit": ["Directory:User", "CoreBanking:Read"]
+  }
+}

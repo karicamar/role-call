@@ -1,0 +1,64 @@
+name: RoleCall
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - run: dotnet restore
+      - run: dotnet build --no-restore -c Release -warnaserror
+      - run: dotnet test --no-build -c Release --logger "trx" --collect:"XPlat Code Coverage"
+      - name: Check for vulnerable NuGet packages
+        run: |
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.txt
+          ! grep -q "has the following vulnerable packages" vuln.txt
+
+  browser:
+    # The real app in a real browser: several users review, revoke and audit, under the strict CSP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Start RoleCall
+        run: |
+          dotnet build src/RoleCall.Web -c Release
+          nohup dotnet run --project src/RoleCall.Web -c Release --no-build --launch-profile http > app.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:5095/health && break; sleep 1; done
+      - run: node demo/screenshots.mjs "$(which google-chrome)" http://localhost:5095
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: |
+            docs/*.png
+            app.log
+
+  codeql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          queries: security-extended
+      - run: dotnet build -c Release
+      - uses: github/codeql-action/analyze@v3

@@ -1,0 +1,101 @@
+@page "/campaign/{id:int?}"
+@model CampaignModel
+@{
+    ViewData["Title"] = Model.Current?.Name ?? "Campaign";
+    var c = Model.Current;
+    var s = Model.Stats;
+    var openExists = Model.History.Any(h => h.IsOpen);
+}
+<h1>@(c?.Name ?? "Review campaigns")</h1>
+
+@if (Model.Notice is not null) { <p class="notice">@Model.Notice</p> }
+@if (Model.Problem is not null) { <p class="error">@Model.Problem</p> }
+
+@if (Model.CanManage && !openExists)
+{
+    <form class="form" method="post" asp-page-handler="Start">
+        <h2>Start a new campaign</h2>
+        <p class="muted">Builds one review item per entitlement from the current HR feed, account exports and policy, and assigns each to a reviewer.</p>
+        <label>Name <input name="name" required minlength="3" maxlength="100" value="Access recertification @Model.Clock.Today.ToString("yyyy-MM")"></label>
+        <label>Due on <input name="dueOn" type="date" required value="@Model.SuggestedDue.ToString("yyyy-MM-dd")"></label>
+        <div><button class="button primary" type="submit">Start campaign</button></div>
+    </form>
+}
+
+@if (c is not null && s is not null)
+{
+    <p class="lead">Started @Model.Clock.Format(c.StartedAt) by @c.StartedBy · due @c.DueOn.ToString("dd.MM.yyyy")
+        @(c.IsOpen ? "" : $" · closed {Model.Clock.Format(c.ClosedAt)} by {c.ClosedBy}")<br>
+        <span class="muted">Basis (HR feed, accounts, policy) SHA-256 <code>@c.BasisHash[..16]…</code></span></p>
+
+    <div class="tiles">
+        <div class="tile"><span class="n">@s.Percent %</span>decided (@s.Decided of @s.Total)<div class="progress"><span class="@AppPage.Bar(s.Percent)"></span></div></div>
+        <div class="tile"><span class="n">@s.Revoked</span>to revoke</div>
+        <div class="tile @(s.RiskyOpen > 0 ? "warn" : "")"><span class="n">@s.RiskyOpen</span>risky items still open</div>
+        <div class="tile @(s.Overdue > 0 ? "alarm" : "")"><span class="n">@s.Overdue</span>overdue</div>
+    </div>
+
+    <div class="actions">
+        @if (Model.CanManage && c.IsOpen)
+        {
+            <form method="post" asp-page-handler="Escalate" asp-route-id="@c.Id"><button class="button" type="submit" disabled="@(Model.Clock.Today <= c.DueOn)">Escalate overdue items</button></form>
+            <form method="post" asp-page-handler="Close" asp-route-id="@c.Id"><button class="button primary" type="submit" disabled="@(s.Open > 0)">Close campaign</button></form>
+        }
+        <a class="button" href="/campaigns/@c.Id/revocations.csv">Revocation list (CSV)</a>
+        <a class="button" href="/campaigns/@c.Id/evidence.json">Evidence for audit (JSON)</a>
+    </div>
+
+    @if (Model.Signals.Count > 0)
+    {
+        <h2>Review quality</h2>
+        @foreach (var sig in Model.Signals)
+        {
+            <p class="banner"><b>@Model.Name(sig.ReviewerId)</b>: @sig.Message</p>
+        }
+    }
+
+    <h2>Items</h2>
+    <div class="filters">
+        @foreach (var (key, label) in new[] { ("risky", "With a risk"), ("open", "Open"), ("revoked", "Revoked"), ("all", "All") })
+        {
+            <a class="@(Model.Show == key ? "active" : "")" href="/campaign/@c.Id?show=@key">@label</a>
+        }
+    </div>
+    <div class="table-wrap">
+    <table class="grid compact">
+        <thead><tr><th>Severity</th><th>Person</th><th>Entitlement</th><th>Risk</th><th>Reviewer</th><th>Decision</th></tr></thead>
+        <tbody>
+        @foreach (var i in Model.Shown)
+        {
+            <tr class="@(i.Decision is null ? "" : "done")">
+                <td><span class="sev @AppPage.Css(i.Severity)">@i.Severity</span></td>
+                <td>@i.SubjectName</td>
+                <td><span class="ent">@i.Entitlement</span><br><span class="muted">@i.AccountKey</span></td>
+                <td>@foreach (var r in i.Risks) { <span class="kind">@Analyzer.Describe(r)</span> }</td>
+                <td>@Model.Name(i.ReviewerId)<br><span class="muted">@i.ReviewerReason</span></td>
+                <td>
+                    @if (i.Decision is { } d)
+                    {
+                        <span class="dec @d.ToString().ToLowerInvariant()">@d</span>
+                        <span class="muted">@Model.Clock.Format(i.DecidedAt)@(i.Bulk ? " bulk" : "")</span>
+                        @if (i.Comment is not null) { <div class="muted">“@i.Comment”</div> }
+                    }
+                    else { <span class="muted">open</span> }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+}
+
+@if (Model.History.Count > 1)
+{
+    <h2>All campaigns</h2>
+    <ul>
+        @foreach (var h in Model.History)
+        {
+            <li><a href="/campaign/@h.Id">@h.Name</a> <span class="muted">@(h.IsOpen ? "open" : "closed")</span></li>
+        }
+    </ul>
+}

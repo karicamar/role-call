@@ -1,0 +1,38 @@
+@page "/login"
+@model LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+<div class="login">
+    <h1>Sign in to RoleCall</h1>
+    <p class="lead">Access recertification for @Model.Organisation: managers confirm or revoke what their people may do,
+        the IAM team runs the campaign, internal audit checks the evidence.</p>
+
+    @if (Model.Error)
+    {
+        <p class="error">Unknown user.</p>
+    }
+    @if (Model.Sso)
+    {
+        <p><a class="button primary" href="/account/sso?returnUrl=@Uri.EscapeDataString(Model.ReturnUrl ?? "/")">Sign in with your company account</a></p>
+    }
+    @if (Model.DemoLogin)
+    {
+        <h2>Demo users</h2>
+        <p class="muted">No passwords: this list only exists in the demo configuration.</p>
+        <div class="users">
+            @foreach (var u in DemoUser.All)
+            {
+                <form method="post" action="/account/login" asp-antiforgery="true">
+                    <input type="hidden" name="user" value="@u.Name">
+                    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl">
+                    <button type="submit"><b>@u.DisplayName</b><span class="muted">@u.Description</span></button>
+                </form>
+            }
+        </div>
+    }
+    else if (!Model.Sso)
+    {
+        <p class="banner">No sign-in method is configured. Set <code>Auth:Oidc</code> (or <code>RoleCall:DemoLogin</code> for a demo).</p>
+    }
+</div>

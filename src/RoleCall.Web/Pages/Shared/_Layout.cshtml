@@ -1,0 +1,57 @@
+@inject Microsoft.Extensions.Options.IOptions<RoleCallOptions> Options
+@inject ReviewService Reviews
+@{
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    var actor = signedIn ? Actor.From(User) : null;
+    var path = Context.Request.Path.Value ?? "/";
+    var open = 0;
+    if (actor?.EmployeeId is not null)
+    {
+        var (_, mine) = await Reviews.MyItemsAsync(actor);
+        open = mine.Count(i => i.Decision is null);
+    }
+    string Active(string p) => (p == "/" ? path == "/" : path.StartsWith(p, StringComparison.OrdinalIgnoreCase)) ? "active" : "";
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@ViewData["Title"] · RoleCall</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/app.css" asp-append-version="true">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="/"><span class="logo">✔</span> RoleCall <span class="org">@Options.Value.Organisation</span></a>
+    @if (actor is not null)
+    {
+        <nav aria-label="Main">
+            <a class="@Active("/")" href="/">Overview</a>
+            <a class="@Active("/reviews")" href="/reviews">My reviews @if (open > 0) {<span class="count">@open</span>}</a>
+            <a class="@Active("/findings")" href="/findings">Findings</a>
+            @if (actor.IsIam || actor.IsAuditor)
+            {
+                <a class="@Active("/campaign")" href="/campaign">Campaign</a>
+                <a class="@Active("/audit")" href="/audit">Audit trail</a>
+            }
+            @if (actor.IsIam)
+            {
+                <a class="@Active("/admin")" href="/admin/import">Import &amp; policy</a>
+            }
+        </nav>
+        <div class="me">
+            <span>@actor.Name</span>
+            @foreach (var r in actor.Roles) { <span class="role">@r</span> }
+            <form method="post" action="/account/logout" asp-antiforgery="true">
+                <button class="link" type="submit">Sign out</button>
+            </form>
+        </div>
+    }
+</header>
+<main>
+    @RenderBody()
+</main>
+<p class="foot">RoleCall: access recertification and segregation of duties. Demo data is fictional.</p>
+</body>
+</html>
