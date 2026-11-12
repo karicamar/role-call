@@ -22,7 +22,8 @@ public static class DemoData
 
         var time = new ManualTime(now.AddDays(-9).AddHours(-2));
         var service = new ReviewService(dbs, new Clock(time, options));
-        var today = new Clock(TimeProvider.System, options).Today;
+        // The same clock as the rest of the seed: mixing in the system clock shifted the HR dates against the campaign
+        var today = new Clock(new ManualTime(now), options).Today;
         var policy = (await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Data", "Seed", "policy.json")))
             .Replace("TODAY+20", D(today.AddDays(20))).Replace("TODAY-15", D(today.AddDays(-15)));
 
